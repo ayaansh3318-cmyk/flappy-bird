@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird Game</title>
+    <style>
+        /* CSS styling to center the game canvas and design the interface */
+        body {
+            margin: 0;
+            padding: 0;
+            background: #222;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: 'Arial', sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+
+        h1 {
+            margin: 5px 0;
+            font-size: 24px;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            background: #70c5ce; /* Sky blue background color */
+        }
+
+        #instructions {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #aaa;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Flappy Bird</h1>
+    <div id="game-container">
+        <!-- The canvas element where the game graphics are drawn -->
+        <canvas id="gameCanvas" width="360" height="512"></canvas>
+    </div>
+    <div id="instructions">Press <b>SPACEBAR</b> or <b>CLICK / TAP</b> to Jump</div>
+
+    <script>
+        // JavaScript Game Logic
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // Game Configuration & States
+        let gameRunning = false;
+        let gameOver = false;
+        let score = 0;
+        let highScore = 0;
+        let frameCount = 0;
+
+        // Bird Properties
+        const bird = {
+            x: 50,
+            y: 200,
+            width: 34,
+            height: 24,
+            gravity: 0.25,
+            velocity: 0,
+            jump: -5.5
+        };
+
+        // Pipe Management
+        const pipes = [];
+        const pipeWidth = 60;
+        const pipeGap = 120; // Size of the clearance gap the bird flies through
+        const pipeSpeed = 2;
+
+        // Game Controls
+        function playerJump() {
+            if (gameOver) {
+                resetGame();
+            } else if (!gameRunning) {
+                gameRunning = true;
+            } else {
+                bird.velocity = bird.jump;
+            }
+        }
+
+        // Listen for keyboard input (Spacebar)
+        window.addEventListener("keydown", (e) => {
+            if (e.code === "Space") {
+                e.preventDefault(); // Stop page from scrolling
+                playerJump();
+            }
+        });
+
+        // Listen for mouse clicks or mobile screen touches
+        canvas.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            playerJump();
+        });
+
+        // Reset game variables back to start states
+        function resetGame() {
+            bird.y = 200;
+            bird.velocity = 0;
+            pipes.length = 0; // Clear the array
+            score = 0;
+            frameCount = 0;
+            gameOver = false;
+            gameRunning = false;
+        }
+
+        // Generate dynamic obstacles
+        function spawnPipe() {
+            // Randomize the height of the top pipe within bounds
+            const minHeight = 50;
+            const maxHeight = canvas.height - pipeGap - minHeight;
+            const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+
+            pipes.push({
+                x: canvas.width,
+                topHeight: topHeight,
+                bottomY: topHeight + pipeGap,
+                passed: false
+            });
+        }
+
+        // Main game frame loop
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Physics, movements, and collision detection rules
+        function update() {
+            if (!gameRunning || gameOver) return;
+
+            frameCount++;
+
+            // Handle Bird movement rules
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            // Boundary collision rules (Ceiling or Ground)
+            if (bird.y + bird.height >= canvas.height || bird.y <= 0) {
+                endGame();
+            }
+
+            // Spawn obstacles every 100 frames
+            if (frameCount % 100 === 0) {
+                spawnPipe();
+            }
+
+            // Loop backward through pipes to process alignment & scores safely
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                pipes[i].x -= pipeSpeed;
+
+                // Collision Detection Box Metrics
+                if (
+                    bird.x + bird.width > pipes[i].x &&
+                    bird.x < pipes[i].x + pipeWidth &&
+                    (bird.y < pipes[i].topHeight || bird.y + bird.height > pipes[i].bottomY)
+                ) {
+                    endGame();
+                }
+
+                // Increment score points upon a clean passage
+                if (!pipes[i].passed && pipes[i].x + pipeWidth < bird.x) {
+                    score++;
+                    pipes[i].passed = true;
+                    if (score > highScore) {
+                        highScore = score;
+                    }
+                }
+
+                // Clean out off-screen components
+                if (pipes[i].x + pipeWidth < 0) {
+                    pipes.splice(i, 1);
+                }
+            }
+        }
+
+        // Trigger Game Over screen state
+        function endGame() {
+            gameOver = true;
+            gameRunning = false;
+        }
+
+        // Render shapes and text to the canvas layout frame
+        function render() {
+            // 1. Clear previous Canvas frame
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Draw Pipes
+            ctx.fillStyle = "#73bf2e"; // Green pipes
+            pipes.forEach(pipe => {
+                // Top Pipe rectangle shape bounds
+                ctx.fillRect(pipe.x, 0, pipeWidth, pipe.topHeight);
+                ctx.strokeStyle = "#558022";
+                ctx.strokeRect(pipe.x, 0, pipeWidth, pipe.topHeight);
+
+                // Bottom Pipe rectangle shape bounds
+                ctx.fillRect(pipe.x, pipe.bottomY, pipeWidth, canvas.height - pipe.bottomY);
+                ctx.strokeRect(pipe.x, pipe.bottomY, pipeWidth, canvas.height - pipe.bottomY);
+            });
+
+            // 3. Draw Bird (Clean Yellow Rounded Box Shape instead of sprites)
+            ctx.fillStyle = "#f7dc6f"; 
+            ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
+            // Bird Eye detailing
+            ctx.fillStyle = "#000";
+            ctx.fillRect(bird.x + 22, bird.y + 4, 4, 4);
+            // Bird Beak detailing
+            ctx.fillStyle = "#e67e22";
+            ctx.fillRect(bird.x + 30, bird.y + 10, 6, 6);
+
+            // 4. Interface Overlays & Text Rendering
+            ctx.fillStyle = "#fff";
+            ctx.font = "bold 24px Arial";
+            ctx.textAlign = "center";
+
+            if (!gameRunning && !gameOver) {
+                // Initial Entry Screen UI Text overlay
+                ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#fff";
+                ctx.fillText("TAP OR SPACE", canvas.width / 2, canvas.height / 2 - 20);
+                ctx.fillText("TO START", canvas.width / 2, canvas.height / 2 + 20);
+            } else if (gameOver) {
+                // Game Over Score Board text overlay screen state
+                ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#fff";
+                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 50);
+                ctx.font = "20px Arial";
+                ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2 - 10);
+                ctx.fillText(`Best: ${highScore}`, canvas.width / 2, canvas.height / 2 + 20);
+                ctx.font = "14px Arial";
+                ctx.fillStyle = "#aaa";
+                ctx.fillText("Press Space or Click to Retry", canvas.width / 2, canvas.height / 2 + 70);
+            } else {
+                // Running live display layout score metrics text anchor
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 4;
+                ctx.strokeText(score, canvas.width / 2, 50);
+                ctx.fillText(score, canvas.width / 2, 50);
+            }
+        }
+
+        // Fire up initial loop configuration initialization setup sequence
+        gameLoop();
+    </script>
+</body>
+</html>
